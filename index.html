@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Home Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
+<style>
+  :root{--bg:#0f172a;--card:#1e293b;--line:#334155;--text:#e2e8f0;--mute:#94a3b8;--on:#22c55e;--off:#475569;--acc:#38bdf8;--bad:#ef4444}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);padding:16px}
+  .wrap{max-width:900px;margin:0 auto}
+  header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+  h1{font-size:1.3rem;margin:0}
+  .pill{padding:4px 12px;border-radius:99px;font-size:.8rem;background:var(--off)}
+  .pill.ok{background:var(--on);color:#04210f}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .card h3{margin:0 0 8px;font-size:.95rem;color:var(--mute);font-weight:500}
+  .dev{display:flex;justify-content:space-between;align-items:center}
+  .dev .name{font-size:1.1rem;font-weight:600}
+  .state{font-size:.8rem;color:var(--mute)}
+  .state.on{color:var(--on)}
+  .sw{position:relative;width:54px;height:30px;border-radius:99px;background:var(--off);border:0;cursor:pointer;transition:.2s}
+  .sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:.2s}
+  .sw.on{background:var(--on)}
+  .sw.on::after{left:27px}
+  .big{font-size:2rem;font-weight:700}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button.btn,select,input[type=text]{background:#0b1220;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 14px;font-size:.95rem}
+  button.btn{cursor:pointer}
+  button.btn:hover{border-color:var(--acc)}
+  #mic{background:var(--acc);color:#04202c;font-weight:700;border:0}
+  #mic.live{background:var(--bad);color:#fff;animation:pulse 1.2s infinite}
+  @keyframes pulse{50%{opacity:.6}}
+  input[type=text]{flex:1;min-width:160px}
+  #heard{min-height:24px;color:var(--acc);margin:10px 0 4px}
+  #log{font-family:ui-monospace,Menlo,monospace;font-size:.78rem;color:var(--mute);max-height:150px;overflow:auto;white-space:pre-wrap}
+  #alert{display:none;background:var(--bad);padding:10px 14px;border-radius:12px;margin-bottom:12px;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Smart Home Dashboard</h1>
+    <div class="row">
+      <span id="mqttPill" class="pill">Broker: connecting</span>
+      <span id="espPill" class="pill">ESP32: offline</span>
+    </div>
+  </header>
+
+  <div id="alert"></div>
+
+  <div class="grid" id="devices"></div>
+
+  <div class="grid">
+    <div class="card"><h3>Temperature</h3><div class="big"><span id="temp">--</span> &deg;C</div></div>
+    <div class="card"><h3>Humidity</h3><div class="big"><span id="hum">--</span> %</div></div>
+    <div class="card"><h3>Motion (PIR)</h3><div class="big" id="motion">--</div></div>
+    <div class="card">
+      <h3>Security alarm</h3>
+      <div class="dev"><span class="state" id="secState">OFF</span><button class="sw" id="secSw" aria-label="security"></button></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <h3>Quick actions</h3>
+    <div class="row">
+      <button class="btn" onclick="send('all','ON')">All ON</button>
+      <button class="btn" onclick="send('all','OFF')">All OFF</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Voice control</h3>
+    <div class="row">
+      <button class="btn" id="mic">Start listening</button>
+      <select id="lang">
+        <option value="en-IN">English (India)</option>
+        <option value="ta-IN">Tamil</option>
+        <option value="en-US">English (US)</option>
+      </select>
+      <label class="state"><input type="checkbox" id="speak" checked> Voice reply</label>
+    </div>
+    <div id="heard">Say: "turn on the light", "fan off", "all off", "security on"</div>
+    <div class="row">
+      <input type="text" id="typed" placeholder="Or type a command, e.g. light and fan on">
+      <button class="btn" id="typedBtn">Run</button>
+    </div>
+    <div id="log"></div>
+  </div>
+</div>
+
+<script>
+// ---------- CONFIG (BASE must match main.py) ----------
+const BASE = "sakthi_ece/home";
+// HiveMQ Cloud WebSocket URL: wss://<cluster>.s1.eu.hivemq.cloud:8884/mqtt
+const BROKER_URL = "wss:9b125e0fd24d4dad9bdcd3ac47fa0c39.s1.eu.hivemq.cloud:8884/mqtt";
+const MQTT_USER = "sakthi";   // use a separate dashboard-only credential if possible
+const MQTT_PASS = "Sakthi@06";   // visible to anyone who opens this file
+const DEVICES = ["light", "fan", "socket", "bulb"];
+const LABEL = {light:"Light", fan:"Fan", socket:"Socket", bulb:"Bulb"};
+
+// ---------- UI build ----------
+const devBox = document.getElementById("devices");
+DEVICES.forEach(d => {
+  devBox.insertAdjacentHTML("beforeend",
+    `<div class="card"><h3>${LABEL[d]}</h3>
+      <div class="dev"><span class="state" id="st_${d}">OFF</span>
+      <button class="sw" id="sw_${d}" aria-label="${d}"></button></div></div>`);
+  document.getElementById("sw_" + d).onclick = () => send(d, "TOGGLE");
+});
+document.getElementById("secSw").onclick = () => send("security", "TOGGLE_SEC");
+
+const $ = id => document.getElementById(id);
+function log(msg){ const l=$("log"); l.textContent = new Date().toLocaleTimeString()+"  "+msg+"\n"+l.textContent; }
+
+// ---------- MQTT ----------
+const client = mqtt.connect(BROKER_URL, {
+  clientId: "dash_" + Math.random().toString(16).slice(2, 8),
+  username: MQTT_USER,
+  password: MQTT_PASS,
+  reconnectPeriod: 3000
+});
+const cur = {};  // latest known ON/OFF per device (incl. security)
+
+client.on("connect", () => {
+  $("mqttPill").textContent = "Broker: connected";
+  $("mqttPill").classList.add("ok");
+  client.subscribe(BASE + "/#");
+  log("Connected to broker");
+});
+client.on("close", () => { $("mqttPill").textContent = "Broker: offline"; $("mqttPill").classList.remove("ok"); });
+
+client.on("message", (t, payload) => {
+  const msg = payload.toString();
+  const p = t.slice(BASE.length + 1).split("/");
+  if (p[1] === "set") return;                       // ignore our own commands
+
+  if (p[0] === "status") {
+    const on = msg === "online";
+    $("espPill").textContent = "ESP32: " + (on ? "online" : "offline");
+    $("espPill").classList.toggle("ok", on);
+  } else if (p[0] === "sensor") {
+    if (p[1] === "temp") $("temp").textContent = msg;
+    if (p[1] === "hum")  $("hum").textContent  = msg;
+    if (p[1] === "motion") $("motion").textContent = msg === "1" ? "Detected" : "Clear";
+  } else if (p[0] === "alert") {
+    const a = $("alert"); a.textContent = msg; a.style.display = "block";
+    setTimeout(() => a.style.display = "none", 8000);
+    log("ALERT: " + msg);
+  } else if (p[1] === "state") {
+    const on = msg === "ON";
+    cur[p[0]] = on;
+    if (p[0] === "security") {
+      $("secState").textContent = on ? "ARMED" : "OFF";
+      $("secState").classList.toggle("on", on);
+      $("secSw").classList.toggle("on", on);
+    } else if (DEVICES.includes(p[0])) {
+      $("st_" + p[0]).textContent = msg;
+      $("st_" + p[0]).classList.toggle("on", on);
+      $("sw_" + p[0]).classList.toggle("on", on);
+    }
+  }
+});
+
+function send(name, cmd) {
+  if (cmd === "TOGGLE_SEC") cmd = cur.security ? "OFF" : "ON";
+  client.publish(`${BASE}/${name}/set`, cmd);
+  log(`-> ${name}/set ${cmd}`);
+}
+
+// ---------- Command parser (voice + typed) ----------
+const KW = {
+  light:  ["light", "lamp", "tube", "லைட்", "விளக்கு"],
+  fan:    ["fan", "ஃபேன்", "ஃபேன", "பேன்", "விசிறி", "மின்விசிறி"],
+  socket: ["socket", "plug", "சாக்கெட்", "பிளக்"],
+  bulb:   ["bulb", "night", "பல்ப்"],
+  security: ["security", "alarm", "alert", "அலாரம்", "பாதுகாப்பு"],
+  all:    ["all", "everything", "every thing", "எல்லாம்", "அனைத்தும்"]
+};
+const ON_EN  = /\b(on|start|enable|open|activate)\b/;
+const OFF_EN = /\b(off|stop|disable|close|deactivate)\b/;
+const ON_TA  = ["ஆன்", "போடு", "எரி", "திற", "இயக்கு"];
+const OFF_TA = ["ஆஃப்", "ஆப்", "அணை", "நிறுத்து", "மூடு"];
+
+function has(text, list) { return list.some(k => text.includes(k)); }
+
+function handleCommand(raw) {
+  const text = raw.toLowerCase().trim();
+  if (!text) return;
+  let action = null;
+  if (OFF_EN.test(text) || has(text, OFF_TA)) action = "OFF";
+  else if (ON_EN.test(text) || has(text, ON_TA)) action = "ON";
+
+  if (!action) { reply("Sorry, I did not get on or off"); return; }
+
+  if (has(text, KW.all)) {
+    send("all", action);
+    reply("All devices " + action.toLowerCase());
+    return;
+  }
+  const hits = [];
+  DEVICES.forEach(d => { if (has(text, KW[d])) hits.push(d); });
+  if (has(text, KW.security)) hits.push("security");
+
+  if (!hits.length) { reply("Which device? Try light, fan, socket or bulb"); return; }
+  hits.forEach(d => send(d, action));
+  reply(hits.join(" and ") + " turned " + action.toLowerCase());
+}
+
+function reply(msg) {
+  log("Reply: " + msg);
+  if ($("speak").checked && "speechSynthesis" in window && $("lang").value.startsWith("en")) {
+    speechSynthesis.cancel();
+    speechSynthesis.speak(new SpeechSynthesisUtterance(msg));
+  }
+}
+
+$("typedBtn").onclick = () => { handleCommand($("typed").value); $("typed").value = ""; };
+$("typed").addEventListener("keydown", e => { if (e.key === "Enter") $("typedBtn").click(); });
+
+// ---------- Voice (Web Speech API) ----------
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, listening = false;
+
+if (!SR) {
+  $("mic").disabled = true;
+  $("heard").textContent = "Voice not supported in this browser. Use Chrome or Edge (or type a command).";
+} else {
+  $("mic").onclick = () => {
+    if (listening) { listening = false; rec && rec.stop(); setMic(false); return; }
+    rec = new SR();
+    rec.lang = $("lang").value;
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.onresult = e => {
+      const r = e.results[e.results.length - 1];
+      const txt = r[0].transcript;
+      $("heard").textContent = "Heard: " + txt;
+      if (r.isFinal) { log("Voice: " + txt); handleCommand(txt); }
+    };
+    rec.onerror = e => { log("Mic error: " + e.error); if (e.error === "not-allowed") { listening = false; setMic(false); } };
+    rec.onend = () => { if (listening) { try { rec.start(); } catch (_) {} } else setMic(false); };
+    listening = true; rec.start(); setMic(true);
+  };
+  $("lang").onchange = () => { if (listening) { listening = false; rec.stop(); setTimeout(() => $("mic").click(), 400); } };
+}
+function setMic(on) {
+  $("mic").classList.toggle("live", on);
+  $("mic").textContent = on ? "Listening... (tap to stop)" : "Start listening";
+}
+</script>
+</body>
+</html>

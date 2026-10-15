@@ -1,733 +1,296 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ESP32 Smart Home | IoT Dashboard</title>
-
-<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Home Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
 <style>
-:root {
-  --bg: #0b1120;
-  --panel: #151e30;
-  --panel2: #1c2940;
-  --text: #edf3ff;
-  --muted: #91a2bd;
-  --accent: #60a5fa;
-  --green: #34d399;
-  --red: #fb7185;
-  --border: #2b3a53;
-}
-
-* { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-header {
-  padding: 24px 5%;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.logo {
-  width: 45px;
-  height: 45px;
-  display: grid;
-  place-items: center;
-  border-radius: 14px;
-  background: #19385e;
-  font-size: 25px;
-}
-
-h1 { font-size: 22px; margin: 0 0 5px; }
-h2 { font-size: 18px; margin-top: 0; }
-p { color: var(--muted); }
-
-.subtitle { font-size: 13px; margin: 0; }
-
-.status {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 25px;
-  padding: 10px 15px;
-  font-size: 13px;
-}
-
-.dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--red);
-}
-
-.dot.online { background: var(--green); }
-
-main {
-  max-width: 1200px;
-  padding: 28px 20px 60px;
-  margin: auto;
-}
-
-.welcome {
-  margin-bottom: 24px;
-}
-
-.welcome h2 {
-  font-size: 25px;
-  margin-bottom: 8px;
-}
-
-.welcome p { margin: 0; line-height: 1.6; }
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 20px;
-  min-width: 0;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-}
-
-.device-icon {
-  font-size: 27px;
-  margin-bottom: 14px;
-}
-
-.device-name { font-size: 17px; font-weight: bold; }
-
-.pill {
-  font-size: 11px;
-  padding: 6px 9px;
-  border-radius: 20px;
-  background: #35202c;
-  color: #fda4af;
-  white-space: nowrap;
-}
-
-.pill.on {
-  background: #123b31;
-  color: #6ee7b7;
-}
-
-.device-state {
-  font-size: 13px;
-  color: var(--muted);
-  margin: 14px 0 18px;
-}
-
-button {
-  border: 1px solid var(--border);
-  color: var(--text);
-  background: var(--panel2);
-  padding: 11px 13px;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  transition: 0.2s;
-}
-
-button:hover { filter: brightness(1.2); }
-button:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.btn-row {
-  display: flex;
-  gap: 8px;
-}
-
-.btn-row button { flex: 1; }
-
-.btn-on {
-  background: #155e48;
-  border-color: #247e62;
-}
-
-.btn-off {
-  background: #482536;
-  border-color: #70364d;
-}
-
-.section { margin-top: 28px; }
-
-.section-title {
-  margin-bottom: 15px;
-  font-size: 19px;
-}
-
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.metric-value {
-  font-size: 32px;
-  font-weight: bold;
-  margin: 15px 0 8px;
-}
-
-.metric-label {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.metric-icon { font-size: 24px; }
-
-.metric-foot {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.fan-modes {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.fan-modes button.selected {
-  border-color: var(--accent);
-  background: #173b61;
-  color: #bfdbfe;
-}
-
-.security-panel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.security-status {
-  color: var(--muted);
-  font-size: 13px;
-  margin-top: 8px;
-}
-
-.actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.primary {
-  background: #1d4ed8;
-  border-color: #3b82f6;
-}
-
-.danger {
-  background: #572537;
-  border-color: #854052;
-}
-
-#alertBox {
-  display: none;
-  margin-top: 18px;
-  padding: 14px;
-  border-radius: 12px;
-  border: 1px solid #a43f50;
-  background: #3d1e2b;
-  color: #fecdd3;
-  line-height: 1.5;
-}
-
-#toast {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  max-width: calc(100vw - 40px);
-  padding: 13px 18px;
-  background: #20334d;
-  border: 1px solid #3d5575;
-  border-radius: 12px;
-  display: none;
-  z-index: 10;
-}
-
-footer {
-  border-top: 1px solid var(--border);
-  text-align: center;
-  padding: 22px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-@media (max-width: 850px) {
-  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-@media (max-width: 480px) {
-  header { padding: 18px; }
-  main { padding: 22px 14px 40px; }
-  .grid, .metrics { grid-template-columns: 1fr; }
-  .welcome h2 { font-size: 22px; }
-}
+  :root{--bg:#0f172a;--card:#1e293b;--line:#334155;--text:#e2e8f0;--mute:#94a3b8;--on:#22c55e;--off:#475569;--acc:#38bdf8;--bad:#ef4444}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);padding:16px}
+  .wrap{max-width:900px;margin:0 auto}
+  header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+  h1{font-size:1.3rem;margin:0}
+  .pill{padding:4px 12px;border-radius:99px;font-size:.8rem;background:var(--off)}
+  .pill.ok{background:var(--on);color:#04210f}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .card h3{margin:0 0 8px;font-size:.95rem;color:var(--mute);font-weight:500}
+  .dev{display:flex;justify-content:space-between;align-items:center}
+  .dev .name{font-size:1.1rem;font-weight:600}
+  .state{font-size:.8rem;color:var(--mute)}
+  .state.on{color:var(--on)}
+  .sw{position:relative;width:54px;height:30px;border-radius:99px;background:var(--off);border:0;cursor:pointer;transition:.2s}
+  .sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:.2s}
+  .sw.on{background:var(--on)}
+  .sw.on::after{left:27px}
+  .big{font-size:2rem;font-weight:700}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button.btn,select,input[type=text]{background:#0b1220;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 14px;font-size:.95rem}
+  button.btn{cursor:pointer}
+  button.btn:hover{border-color:var(--acc)}
+  #mic{background:var(--acc);color:#04202c;font-weight:700;border:0}
+  #mic.live{background:var(--bad);color:#fff;animation:pulse 1.2s infinite}
+  @keyframes pulse{50%{opacity:.6}}
+  input[type=text]{flex:1;min-width:160px}
+  #heard{min-height:24px;color:var(--acc);margin:10px 0 4px}
+  #log{font-family:ui-monospace,Menlo,monospace;font-size:.78rem;color:var(--mute);max-height:150px;overflow:auto;white-space:pre-wrap}
+  #alert{display:none;background:var(--bad);padding:10px 14px;border-radius:12px;margin-bottom:12px;font-weight:600}
+  .modeBadge{display:inline-block;padding:4px 10px;border-radius:99px;background:#0b1220;border:1px solid var(--line);color:var(--acc);font-size:.8rem}
 </style>
 </head>
-
 <body>
-
-<header>
-  <div class="brand">
-    <div class="logo">⌂</div>
-    <div>
-      <h1>Smart Home</h1>
-      <p class="subtitle">ESP32 · MicroPython · HiveMQ</p>
+<div class="wrap">
+  <header>
+    <h1>Smart Home Dashboard</h1>
+    <div class="row">
+      <span id="mqttPill" class="pill">Broker: connecting</span>
+      <span id="espPill" class="pill">ESP32: offline</span>
     </div>
-  </div>
+  </header>
 
-  <div class="status">
-    <span class="dot" id="connectionDot"></span>
-    <span id="connectionText">Connecting to MQTT...</span>
-  </div>
-</header>
+  <div id="alert"></div>
 
-<main>
-  <div class="welcome">
-    <h2>Home Automation Dashboard</h2>
-    <p>Monitor your environment and control your appliances from anywhere with an internet connection.</p>
-  </div>
+  <div class="grid" id="devices"></div>
 
-  <h2 class="section-title">Appliance Controls</h2>
+  <div class="card" style="margin-bottom:16px">
+    <h3>Fan temperature control</h3>
+    <div class="row">
+      <span class="state">Current mode:</span>
+      <span class="modeBadge" id="fanMode">AUTO</span>
+      <button class="btn" onclick="setFanAuto()">Automatic mode</button>
+      <button class="btn" onclick="send('fan','ON')">Fan ON (manual)</button>
+      <button class="btn" onclick="send('fan','OFF')">Fan OFF (manual)</button>
+    </div>
+    <p class="state" style="margin-bottom:0">In AUTO, the ESP32 turns the fan ON above 31°C and does not turn it OFF automatically. Use Fan OFF to stop it manually.</p>
+  </div>
 
   <div class="grid">
-
+    <div class="card"><h3>Temperature</h3><div class="big"><span id="temp">--</span> &deg;C</div></div>
+    <div class="card"><h3>Humidity</h3><div class="big"><span id="hum">--</span> %</div></div>
+    <div class="card"><h3>Motion (PIR)</h3><div class="big" id="motion">--</div></div>
     <div class="card">
-      <div class="device-icon">💡</div>
-      <div class="card-header">
-        <span class="device-name">Light</span>
-        <span class="pill" id="lightPill">OFF</span>
-      </div>
-      <div class="device-state" id="lightState">Waiting for ESP32...</div>
-      <div class="btn-row">
-        <button class="btn-on" onclick="controlDevice('light','ON')">Turn ON</button>
-        <button class="btn-off" onclick="controlDevice('light','OFF')">Turn OFF</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="device-icon">🌀</div>
-      <div class="card-header">
-        <span class="device-name">Fan</span>
-        <span class="pill" id="fanPill">OFF</span>
-      </div>
-      <div class="device-state" id="fanState">Waiting for ESP32...</div>
-      <div class="btn-row">
-        <button class="btn-on" onclick="controlDevice('fan','ON')">ON</button>
-        <button class="btn-off" onclick="controlDevice('fan','OFF')">OFF</button>
-      </div>
-      <div class="fan-modes">
-        <button id="modeManual" onclick="setFanMode('MANUAL')">Manual</button>
-        <button id="modeAuto" onclick="setFanMode('AUTO')">Auto</button>
-        
-      </div>
-      <div class="device-state">
-        Mode: <strong id="fanModeText">AUTO</strong>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="device-icon">🔌</div>
-      <div class="card-header">
-        <span class="device-name">Socket</span>
-        <span class="pill" id="socketPill">OFF</span>
-      </div>
-      <div class="device-state" id="socketState">Waiting for ESP32...</div>
-      <div class="btn-row">
-        <button class="btn-on" onclick="controlDevice('socket','ON')">Turn ON</button>
-        <button class="btn-off" onclick="controlDevice('socket','OFF')">Turn OFF</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="device-icon">🟡</div>
-      <div class="card-header">
-        <span class="device-name">Bulb</span>
-        <span class="pill" id="bulbPill">OFF</span>
-      </div>
-      <div class="device-state" id="bulbState">Waiting for ESP32...</div>
-      <div class="btn-row">
-        <button class="btn-on" onclick="controlDevice('bulb','ON')">Turn ON</button>
-        <button class="btn-off" onclick="controlDevice('bulb','OFF')">Turn OFF</button>
-      </div>
-    </div>
-
-  </div>
-
-  <div class="section">
-    <h2 class="section-title">Live Environment Monitoring</h2>
-    <div class="metrics">
-
-      <div class="card">
-        <div class="metric-icon">🌡️</div>
-        <div class="metric-label">Temperature</div>
-        <div class="metric-value"><span id="temperature">--</span>°C</div>
-        <div class="metric-foot">Fan threshold: 31°C</div>
-      </div>
-
-      <div class="card">
-        <div class="metric-icon">💧</div>
-        <div class="metric-label">Humidity</div>
-        <div class="metric-value"><span id="humidity">--</span>%</div>
-        <div class="metric-foot">DHT22 sensor</div>
-      </div>
-
-      <div class="card">
-        <div class="metric-icon">🚶</div>
-        <div class="metric-label">PIR Motion Sensor</div>
-        <div class="metric-value" id="motionValue" style="font-size:24px">--</div>
-        <div class="metric-foot" id="motionTime">Waiting for sensor data</div>
-      </div>
-
+      <h3>Security alarm</h3>
+      <div class="dev"><span class="state" id="secState">OFF</span><button class="sw" id="secSw" aria-label="security"></button></div>
     </div>
   </div>
 
-  <div class="section">
-    <h2 class="section-title">Security System</h2>
-    <div class="card security-panel">
-      <div>
-        <div class="device-name">🛡️ Motion Security</div>
-        <div class="security-status">
-          Status: <strong id="securityStatus">DISARMED</strong>
-        </div>
-      </div>
-
-      <div class="actions">
-        <button class="primary" onclick="controlDevice('security','ON')">Arm Security</button>
-        <button class="danger" onclick="controlDevice('security','OFF')">Disarm Security</button>
-      </div>
-    </div>
-
-    <div id="alertBox">
-      <strong>⚠ Security Alert</strong>
-      <div id="alertText"></div>
+  <div class="card" style="margin-bottom:16px">
+    <h3>Quick actions</h3>
+    <div class="row">
+      <button class="btn" onclick="send('all','ON')">All ON</button>
+      <button class="btn" onclick="send('all','OFF')">All OFF</button>
     </div>
   </div>
 
-  <div class="section">
-    <h2 class="section-title">Quick Actions</h2>
-    <div class="card">
-      <p>Control all four appliances together.</p>
-      <div class="actions">
-        <button class="btn-on" onclick="controlDevice('all','ON')">All Appliances ON</button>
-        <button class="btn-off" onclick="controlDevice('all','OFF')">All Appliances OFF</button>
-        <button onclick="clearAlert()">Clear Alert Display</button>
-      </div>
+  <div class="card">
+    <h3>Voice control</h3>
+    <div class="row">
+      <button class="btn" id="mic">Start listening</button>
+      <select id="lang">
+        <option value="en-IN">English (India)</option>
+        <option value="ta-IN">Tamil</option>
+        <option value="en-US">English (US)</option>
+      </select>
+      <label class="state"><input type="checkbox" id="speak" checked> Voice reply</label>
     </div>
+    <div id="heard">Say: "turn on the light", "fan off", "fan auto", "all off", "security on"</div>
+    <div class="row">
+      <input type="text" id="typed" placeholder="Or type a command, e.g. light and fan on">
+      <button class="btn" id="typedBtn">Run</button>
+    </div>
+    <div id="log"></div>
   </div>
-</main>
-
-<footer>
-  ESP32 Smart Home Automation · MicroPython · HiveMQ MQTT
-</footer>
-
-<div id="toast"></div>
+</div>
 
 <script>
-// ============================================================
-// HIVE MQ CONFIGURATION
-// ============================================================
-
-// Use the exact HiveMQ Cloud cluster hostname.
-// Secure WebSocket port: 8884
-const BROKER_URL =
-  "wss://9b125e0fd24d4dad9bdcd3ac47fa0c39.s1.eu.hivemq.cloud:8884/mqtt";
-
-// Replace these with your current HiveMQ Cloud credentials.
-// Do not publish real credentials in a public repository.
-const MQTT_USERNAME = "sakthi";
-const MQTT_PASSWORD = "Sakthi@06";
-
+// ---------- CONFIG (BASE must match main.py) ----------
 const BASE = "sakthi_ece/home";
+// HiveMQ Cloud WebSocket URL: wss://<cluster>.s1.eu.hivemq.cloud:8884/mqtt
+const BROKER_URL = "wss://9b125e0fd24d4dad9bdcd3ac47fa0c39.s1.eu.hivemq.cloud:8884/mqtt";
+const MQTT_USER = "sakthi";   // use a separate dashboard-only credential if possible
+const MQTT_PASS = "Sakthi@06";   // visible to anyone who opens this file
+const DEVICES = ["light", "fan", "socket", "bulb"];
+const LABEL = {light:"Light", fan:"Fan", socket:"Socket", bulb:"Bulb"};
 
-let mqttClient = null;
+// ---------- UI build ----------
+const devBox = document.getElementById("devices");
+DEVICES.forEach(d => {
+  devBox.insertAdjacentHTML("beforeend",
+    `<div class="card"><h3>${LABEL[d]}</h3>
+      <div class="dev"><span class="state" id="st_${d}">OFF</span>
+      <button class="sw" id="sw_${d}" aria-label="${d}"></button></div></div>`);
+  document.getElementById("sw_" + d).onclick = () => send(d, "TOGGLE");
+});
+document.getElementById("secSw").onclick = () => send("security", "TOGGLE_SEC");
+
+const $ = id => document.getElementById(id);
+function log(msg){ const l=$("log"); l.textContent = new Date().toLocaleTimeString()+"  "+msg+"\n"+l.textContent; }
+
+// ---------- MQTT ----------
+const client = mqtt.connect(BROKER_URL, {
+  clientId: "dash_" + Math.random().toString(16).slice(2, 8),
+  username: MQTT_USER,
+  password: MQTT_PASS,
+  reconnectPeriod: 3000
+});
+const cur = {};  // latest known ON/OFF per device (incl. security)
 let fanMode = "AUTO";
-let securityArmed = false;
 
-const deviceNames = ["light", "fan", "socket", "bulb"];
+client.on("connect", () => {
+  $("mqttPill").textContent = "Broker: connected";
+  $("mqttPill").classList.add("ok");
+  client.subscribe(BASE + "/#");
+  log("Connected to broker");
+});
+client.on("close", () => { $("mqttPill").textContent = "Broker: offline"; $("mqttPill").classList.remove("ok"); });
 
-const applianceState = {
-  light: false,
-  fan: false,
-  socket: false,
-  bulb: false
+client.on("message", (t, payload) => {
+  const msg = payload.toString();
+  const p = t.slice(BASE.length + 1).split("/");
+  if (p[1] === "set") return;                       // ignore our own commands
+
+  if (p[0] === "status") {
+    const on = msg === "online";
+    $("espPill").textContent = "ESP32: " + (on ? "online" : "offline");
+    $("espPill").classList.toggle("ok", on);
+  } else if (p[0] === "sensor") {
+    if (p[1] === "temp") $("temp").textContent = msg;
+    if (p[1] === "hum")  $("hum").textContent  = msg;
+    if (p[1] === "motion") $("motion").textContent = msg === "1" ? "Detected" : "Clear";
+  } else if (p[0] === "alert") {
+    const a = $("alert"); a.textContent = msg; a.style.display = "block";
+    setTimeout(() => a.style.display = "none", 8000);
+    log("ALERT: " + msg);
+  } else if (p[0] === "fan" && p[1] === "mode") {
+    fanMode = msg.toUpperCase();
+    $("fanMode").textContent = fanMode;
+  } else if (p[1] === "state") {
+    const on = msg === "ON";
+    cur[p[0]] = on;
+    if (p[0] === "security") {
+      $("secState").textContent = on ? "ARMED" : "OFF";
+      $("secState").classList.toggle("on", on);
+      $("secSw").classList.toggle("on", on);
+    } else if (DEVICES.includes(p[0])) {
+      $("st_" + p[0]).textContent = msg;
+      $("st_" + p[0]).classList.toggle("on", on);
+      $("sw_" + p[0]).classList.toggle("on", on);
+    }
+  }
+});
+
+function send(name, cmd) {
+  if (!client.connected) {
+    log("Cannot send command: MQTT broker is not connected");
+    reply("Dashboard is not connected to the broker");
+    return;
+  }
+  if (cmd === "TOGGLE_SEC") cmd = cur.security ? "OFF" : "ON";
+  if (name === "fan" && ["ON", "OFF", "TOGGLE"].includes(cmd)) {
+    fanMode = "MANUAL";
+    $("fanMode").textContent = fanMode;
+  }
+  client.publish(`${BASE}/${name}/set`, cmd);
+  log(`-> ${name}/set ${cmd}`);
+}
+
+function setFanAuto() {
+  send("fan", "AUTO");
+  fanMode = "AUTO";
+  $("fanMode").textContent = fanMode;
+  reply("Fan automatic mode requested");
+}
+
+// ---------- Command parser (voice + typed) ----------
+const KW = {
+  light:  ["light", "lamp", "tube", "லைட்", "விளக்கு"],
+  fan:    ["fan", "ஃபேன்", "ஃபேன", "பேன்", "விசிறி", "மின்விசிறி"],
+  socket: ["socket", "plug", "சாக்கெட்", "பிளக்"],
+  bulb:   ["bulb", "night", "பல்ப்"],
+  security: ["security", "alarm", "alert", "அலாரம்", "பாதுகாப்பு"],
+  all:    ["all", "everything", "every thing", "எல்லாம்", "அனைத்தும்"]
 };
+const AUTO_WORDS = ["auto", "automatic", "automatically", "தானியங்கி", "ஆட்டோ"];
+const ON_EN  = /\b(on|start|enable|open|activate)\b/;
+const OFF_EN = /\b(off|stop|disable|close|deactivate)\b/;
+const ON_TA  = ["ஆன்", "போடு", "எரி", "திற", "இயக்கு"];
+const OFF_TA = ["ஆஃப்", "ஆப்", "அணை", "நிறுத்து", "மூடு"];
 
-function showToast(message) {
-  const toast = document.getElementById("toast");
-  toast.textContent = message;
-  toast.style.display = "block";
+function has(text, list) { return list.some(k => text.includes(k)); }
 
-  clearTimeout(showToast.timer);
-  showToast.timer = setTimeout(() => {
-    toast.style.display = "none";
-  }, 3000);
-}
+function handleCommand(raw) {
+  const text = raw.toLowerCase().trim();
+  if (!text) return;
 
-// ============================================================
-// MQTT CONNECTION
-// ============================================================
-
-function connectMQTT() {
-  setConnectionStatus(false, "Connecting to HiveMQ...");
-
-  mqttClient = mqtt.connect(BROKER_URL, {
-    username: MQTT_USERNAME,
-    password: MQTT_PASSWORD,
-    clientId: "home_dashboard_" +
-      Math.random().toString(16).slice(2, 12),
-    clean: true,
-    connectTimeout: 15000,
-    reconnectPeriod: 3000,
-    keepalive: 30
-  });
-
-  mqttClient.on("connect", () => {
-    setConnectionStatus(true, "MQTT Connected");
-    showToast("Connected to HiveMQ Cloud");
-
-    mqttClient.subscribe(BASE + "/#", { qos: 0 }, (err) => {
-      if (err) {
-        console.error("Subscribe error:", err);
-        showToast("Could not subscribe to MQTT topics");
-      }
-    });
-  });
-
-  mqttClient.on("reconnect", () => {
-    setConnectionStatus(false, "Reconnecting...");
-  });
-
-  mqttClient.on("offline", () => {
-    setConnectionStatus(false, "MQTT Offline");
-  });
-
-  mqttClient.on("close", () => {
-    setConnectionStatus(false, "Connection Closed");
-  });
-
-  mqttClient.on("error", (err) => {
-    console.error("MQTT error:", err);
-    setConnectionStatus(false, "MQTT Error");
-  });
-
-  mqttClient.on("message", (topic, payload) => {
-    handleMQTTMessage(topic, payload.toString());
-  });
-}
-
-function setConnectionStatus(connected, message) {
-  document.getElementById("connectionText").textContent = message;
-  document.getElementById("connectionDot")
-    .classList.toggle("online", connected);
-}
-
-// ============================================================
-// PUBLISH COMMANDS
-// ============================================================
-
-function publishCommand(device, command) {
-  if (!mqttClient || !mqttClient.connected) {
-    showToast("Dashboard is not connected to HiveMQ");
-    return false;
-  }
-
-  const mqttTopic = `${BASE}/${device}/set`;
-
-  mqttClient.publish(mqttTopic, command, { qos: 0, retain: false },
-    (err) => {
-      if (err) {
-        showToast("Command publish failed");
-        console.error(err);
-      }
-    });
-
-  return true;
-}
-
-function controlDevice(device, command) {
-  if (device === "fan" && ["ON", "OFF", "TOGGLE"].includes(command)) {
-    fanMode = "MANUAL";
-    updateFanModeUI();
-  }
-
-  if (publishCommand(device, command)) {
-    showToast(`${device.toUpperCase()}: ${command} command sent`);
-  }
-}
-
-function setFanMode(mode) {
-  if (mode !== "AUTO" && mode !== "MANUAL") return;
-
-  if (!mqttClient || !mqttClient.connected) {
-    showToast("Dashboard is not connected to HiveMQ");
+  // Special fan AUTO command must be checked before ON/OFF parsing.
+  if (has(text, KW.fan) && has(text, AUTO_WORDS)) {
+    setFanAuto();
     return;
   }
 
-  if (mode === "AUTO") {
-    // ESP32 accepts AUTO on fan/set.
-    publishCommand("fan", "AUTO");
-    fanMode = "AUTO";
-    updateFanModeUI();
-    showToast("Automatic temperature control requested");
-  } else {
-    // MANUAL means the fan will no longer be temperature controlled.
-    // Preserve its current state; use ON/OFF buttons to change it.
-    fanMode = "MANUAL";
-    updateFanModeUI();
-    showToast("Manual fan mode selected");
-  }
-}
+  let action = null;
+  if (OFF_EN.test(text) || has(text, OFF_TA)) action = "OFF";
+  else if (ON_EN.test(text) || has(text, ON_TA)) action = "ON";
 
-// ============================================================
-// INCOMING MQTT DATA
-// ============================================================
+  if (!action) { reply("Sorry, I did not get on or off"); return; }
 
-function handleMQTTMessage(topic, message) {
-  const prefix = BASE + "/";
-  if (!topic.startsWith(prefix)) return;
-
-  const path = topic.slice(prefix.length).split("/");
-
-  if (path.length === 2 && path[1] === "state") {
-    const name = path[0];
-    const value = message.trim().toUpperCase();
-
-    if (deviceNames.includes(name) &&
-        ["ON", "OFF"].includes(value)) {
-      applianceState[name] = value === "ON";
-      updateDeviceUI(name);
-    }
-
-    if (name === "security") {
-      securityArmed = value === "ON";
-      document.getElementById("securityStatus").textContent =
-        securityArmed ? "ARMED" : "DISARMED";
-    }
-
-    if (name === "status") {
-      // ESP32 online/offline status is also available below.
-      // The MQTT connection status describes this browser's connection.
-    }
-
+  if (has(text, KW.all)) {
+    send("all", action);
+    reply("All devices " + action.toLowerCase());
     return;
   }
+  const hits = [];
+  DEVICES.forEach(d => { if (has(text, KW[d])) hits.push(d); });
+  if (has(text, KW.security)) hits.push("security");
 
-  if (path.length === 2 &&
-      path[0] === "fan" && path[1] === "mode") {
-    const mode = message.trim().toUpperCase();
+  if (!hits.length) { reply("Which device? Try light, fan, socket or bulb"); return; }
+  hits.forEach(d => send(d, action));
+  reply(hits.join(" and ") + " turned " + action.toLowerCase());
+}
 
-    if (mode === "AUTO" || mode === "MANUAL") {
-      fanMode = mode;
-      updateFanModeUI();
-    }
-    return;
-  }
-
-  if (path.length === 2 && path[0] === "sensor") {
-    const value = Number(message);
-
-    if (path[1] === "temp" && Number.isFinite(value)) {
-      document.getElementById("temperature").textContent =
-        value.toFixed(1);
-    }
-
-    if (path[1] === "hum" && Number.isFinite(value)) {
-      document.getElementById("humidity").textContent =
-        value.toFixed(1);
-    }
-
-    if (path[1] === "motion") {
-      const detected = message.trim() === "1";
-      document.getElementById("motionValue").textContent =
-        detected ? "Motion detected" : "No motion";
-      document.getElementById("motionTime").textContent =
-        detected ? "PIR sensor is HIGH" : "PIR sensor is LOW";
-    }
-
-    return;
-  }
-
-  if (path.length === 1 && path[0] === "alert") {
-    document.getElementById("alertText").textContent = message;
-    document.getElementById("alertBox").style.display = "block";
-    showToast("Security alert received");
+function reply(msg) {
+  log("Reply: " + msg);
+  if ($("speak").checked && "speechSynthesis" in window && $("lang").value.startsWith("en")) {
+    speechSynthesis.cancel();
+    speechSynthesis.speak(new SpeechSynthesisUtterance(msg));
   }
 }
 
-// ============================================================
-// UI UPDATES
-// ============================================================
+$("typedBtn").onclick = () => { handleCommand($("typed").value); $("typed").value = ""; };
+$("typed").addEventListener("keydown", e => { if (e.key === "Enter") $("typedBtn").click(); });
 
-function updateDeviceUI(name) {
-  const isOn = applianceState[name];
+// ---------- Voice (Web Speech API) ----------
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, listening = false;
 
-  const pill = document.getElementById(name + "Pill");
-  const state = document.getElementById(name + "State");
-
-  pill.textContent = isOn ? "ON" : "OFF";
-  pill.classList.toggle("on", isOn);
-
-  state.textContent = isOn
-    ? "Appliance is ON"
-    : "Appliance is OFF";
+if (!SR) {
+  $("mic").disabled = true;
+  $("heard").textContent = "Voice not supported in this browser. Use Chrome or Edge (or type a command).";
+} else {
+  $("mic").onclick = () => {
+    if (listening) { listening = false; rec && rec.stop(); setMic(false); return; }
+    rec = new SR();
+    rec.lang = $("lang").value;
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.onresult = e => {
+      const r = e.results[e.results.length - 1];
+      const txt = r[0].transcript;
+      $("heard").textContent = "Heard: " + txt;
+      if (r.isFinal) { log("Voice: " + txt); handleCommand(txt); }
+    };
+    rec.onerror = e => { log("Mic error: " + e.error); if (e.error === "not-allowed") { listening = false; setMic(false); } };
+    rec.onend = () => { if (listening) { try { rec.start(); } catch (_) {} } else setMic(false); };
+    listening = true; rec.start(); setMic(true);
+  };
+  $("lang").onchange = () => { if (listening) { listening = false; rec.stop(); setTimeout(() => $("mic").click(), 400); } };
 }
-
-function updateFanModeUI() {
-  document.getElementById("fanModeText").textContent = fanMode;
-
-  document.getElementById("modeManual")
-    .classList.toggle("selected", fanMode === "MANUAL");
-
-  document.getElementById("modeAuto")
-    .classList.toggle("selected", fanMode === "AUTO");
+function setMic(on) {
+  $("mic").classList.toggle("live", on);
+  $("mic").textContent = on ? "Listening... (tap to stop)" : "Start listening";
 }
-
-function clearAlert() {
-  document.getElementById("alertBox").style.display = "none";
-}
-
-// ============================================================
-// START
-// ============================================================
-
-updateFanModeUI();
-connectMQTT();
 </script>
-
 </body>
 </html>
